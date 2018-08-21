@@ -2,27 +2,30 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN">
 <head>
     <title>分割大文件上传</title>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <style>
-        #test{
+        #test {
             width: 200px;
             height: 100px;
             border: 1px solid green;
             display: none;
         }
-        #img{
+
+        #img {
             width: 50px;
             height: 50px;
             display: none;
         }
-        #upimg{
+
+        #upimg {
             text-align: center;
-            font: 8px/10px '微软雅黑','黑体',sans-serif;
+            font: 8px/10px '微软雅黑', '黑体', sans-serif;
             width: 300px;
             height: 10px;
             border: 1px solid green;
         }
-        #load{
+
+        #load {
             width: 0%;
             height: 100%;
             background: green;
@@ -31,7 +34,7 @@
     </style>
 </head>
 <body>
-<form enctype="multipart/form-data" action="" method="post">   
+<form enctype="multipart/form-data" action="" method="post">
     <!--
     <input type="file" name="pic" />
     <div id="img"></div>
@@ -41,105 +44,127 @@
         <div id="load"></div>
     </div>
     <input type="file" name="mof" multiple="multiple"/>
-    <input type="button" value="uploadfile" onclick="upfile();" />
-    <input type="submit" value="submit" />
+    <input type="button" value="uploadfile" onclick="upfile();"/>
+    <input type="submit" value="submit"/>
 </form>
 <div id="test">
     测试是否DIV消失
 </div>
 <script type="text/javascript">
-    var serverPath="http://yj.scanner.com:8088/fileServer";
+    var serverPath = "http://yj.scanner.com:8088/fileServer";
 
-    var dom=document.getElementsByTagName('form')[0];
-    dom.onsubmit=function(){
+    var dom = document.getElementsByTagName('form')[0];
+    dom.onsubmit = function () {
         //return false;
     }
-    var xhr=new XMLHttpRequest();
+    var xhr = new XMLHttpRequest();
     var fd;
-    var des=document.getElementById('load');
-    var num=document.getElementById('upimg');
+    var des = document.getElementById('load');
+    var num = document.getElementById('upimg');
     var file;
-    const LENGTH=10*1024*1024;
+    const LENGTH = 10* 1024 * 1024;
     var start;
     var end;
     var blob;
     var pecent;
     var filename;
+    var chunkCount=0;
+    var fileId;
     //var pending;
     //var clock;
-    function upfile(){
-        start=0;
-        end=LENGTH+start;
+    function upfile() {
+        start = 0;
+        end = LENGTH + start;
         //pending=false;
 
-        file=document.getElementsByName('mof')[0].files[0];
+        file = document.getElementsByName('mof')[0].files[0];
         //filename = file.name;
-        if(!file){
+        if (!file) {
             alert('请选择文件');
             return;
         }
-        //clock=setInterval('up()',1000);
+        chunkCount=Math.floor(file.size%LENGTH==0?(file.size/LENGTH):(file.size/LENGTH+1))
+        fileId=uuidUtil();
         up();
 
     }
-
-    function up(){
+    var index=1;
+    function up() {
         /*
          if(pending){
          return;
          }
          */
-        if(start<file.size){
-            xhr.open('POST',serverPath+"/uploadFile",true);
+        if (start < file.size) {
+            xhr.open('POST', serverPath + "/uploadFile", true);
             //xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
-            xhr.onreadystatechange=function(){
-                if(this.readyState==4){
-                    if(this.status>=200&&this.status<300){
-                        if(this.responseText.indexOf('failed') >= 0){
+            xhr.onreadystatechange = function () {
+                if (this.readyState == 4) {
+                    if (this.status >= 200 && this.status < 300) {
+                        if (this.responseText.indexOf('failed') >= 0) {
                             //alert(this.responseText);
                             alert('文件发送失败，请重新发送');
-                            des.style.width='0%';
+                            des.style.width = '0%';
                             //num.innerHTML='';
                             //clearInterval(clock);
-                        }else{
+                        } else {
                             //alert(this.responseText)
                             // pending=false;
-                            start=end;
-                            end=start+LENGTH;
-                            setTimeout('up()',1000);
+                            start = end;
+                            end = start + LENGTH;
+                            setTimeout('up()', 1000);
                         }
 
                     }
                 }
             }
-            xhr.upload.onprogress=function(ev){
-                if(ev.lengthComputable){
-                    pecent=100*(ev.loaded+start)/file.size;
-                    if(pecent>100){
-                        pecent=100;
+            xhr.upload.onprogress = function (ev) {
+                if (ev.lengthComputable) {
+                    pecent = 100 * (ev.loaded + start) / file.size;
+                    if (pecent > 100) {
+                        pecent = 100;
                     }
                     //num.innerHTML=parseInt(pecent)+'%';
-                    des.style.width=pecent+'%';
-                    des.innerHTML = parseInt(pecent)+'%'
+                    des.style.width = pecent + '%';
+                    des.innerHTML = parseInt(pecent) + '%'
                 }
             }
 
             //分割文件核心部分slice
-            blob=file.slice(start,end);
-            fd=new FormData();
-            fd.append('uploadAccessory',blob);
-            fd.append('test',file.name);
-            //console.log(fd);
-            //pending=true;
+            blob = file.slice(start, end);
+            fd = new FormData();
+            fd.append(fileId, blob);
+            fd.append("uploadAttachStr",JSON.stringify(new uploadAttachDTO(file.name,fileId,index++,chunkCount)));
             xhr.send(fd);
-        }else{
+        } else {
             //clearInterval(clock);
         }
     }
 
-    function change(){
-        des.style.width='0%';
+    function change() {
+        des.style.width = '0%';
     }
+    function uploadAttachDTO(fileName,fileId,fileIndex,chunkCount) {
+        this.fileName=fileName;
+        this.fileId=fileId;
+        this.fileIndex=fileIndex;
+        this.chunkCount=chunkCount;
+    }
+
+    function uuidUtil() {
+        var s = [];
+        var hexDigits = "0123456789abcdef";
+        for (var i = 0; i < 36; i++) {
+            s[i] = hexDigits.substr(Math.floor(Math.random() * 0x10), 1);
+        }
+        s[14] = "4"; // bits 12-15 of the time_hi_and_version field to 0010
+        s[19] = hexDigits.substr((s[19] & 0x3) | 0x8, 1); // bits 6-7 of the clock_seq_hi_and_reserved to 01
+        s[8] = s[13] = s[18] = s[23] = "-";
+
+        var uuid = s.join("");
+        return uuid;
+    }
+
 
 </script>
 </body>
