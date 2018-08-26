@@ -7,6 +7,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,6 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.http.util.TextUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,6 +38,13 @@ public class FileUploadController {
 	@RequestMapping("/uploadFile")
 	public synchronized void uploadFile(HttpServletRequest request, String uploadAttachStr)
 			throws IllegalStateException, IOException {
+		try {
+			Thread.sleep(2000);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
 		UploadAttachDTO uploadAttachDTO = JSON.parseObject(uploadAttachStr, UploadAttachDTO.class);
 		init(uploadAttachDTO.getFileId());
 		boolean isMultipart = ServletFileUpload.isMultipartContent(request);
@@ -44,7 +54,8 @@ public class FileUploadController {
 		MultipartRequest multipartRequest = (MultipartRequest) request;
 		List<MultipartFile> fileList = multipartRequest.getFiles(uploadAttachDTO.getFileId());
 		MultipartFile file = fileList.get(0);
-		System.out.println("文件大小" + file.getSize() + "请求头信息" + request.getHeader("Range"));
+		System.out.println("文件大小" + file.getSize() + "请求头信息" + request.getHeader("Range") + "当前正在上传第"
+				+ uploadAttachDTO.getFileIndex());
 		// 将目标文件写入磁盘、
 		// 将分块的文件建立一个临时文件夹
 		String dir = path + File.separator + uploadAttachDTO.getFileId();
@@ -52,7 +63,7 @@ public class FileUploadController {
 		if (!dirFile.exists()) {
 			dirFile.mkdir();
 		}
-		String targetFilePath = dir + File.separator + map.get(uploadAttachDTO.getFileId()) + ".block";
+		String targetFilePath = dir + File.separator + map.get(uploadAttachDTO.getFileId());
 		file.transferTo(new File(targetFilePath));
 
 		// 如果分块的文件已经完全上传完毕 则开始整合文件
@@ -145,38 +156,38 @@ public class FileUploadController {
 	}
 
 	public static void merge(String from, String to) throws IOException {
-		File t = new File(to);
-		FileInputStream in = null;
-		FileChannel inChannel = null;
-
-		FileOutputStream out = new FileOutputStream(t, true);
-		FileChannel outChannel = out.getChannel();
-
-		File f = new File(from);
-		// 获取目录下的每一个文件名，再将每个文件一次写入目标文件
-		if (f.isDirectory()) {
-			File[] files = f.listFiles();
-			// 记录新文件最后一个数据的位置
-			long start = 0;
-			for (File file : files) {
-
-				in = new FileInputStream(file);
-				inChannel = in.getChannel();
-
-				// 从inChannel中读取file.length()长度的数据，写入outChannel的start处
-				outChannel.transferFrom(inChannel, start, file.length());
-				start += file.length();
-				in.close();
-				inChannel.close();
-			}
+		FileOutputStream output = new FileOutputStream(to, true);
+		File[] files = new File(from).listFiles();
+		for (File file : files) {
+			InputStream input = new FileInputStream(file);
+			IOUtils.copy(input, output);
+			input.close();
 		}
-		out.close();
-		outChannel.close();
+		output.flush();
+		output.close();
 	}
-
+	/*
+	 * File t = new File(to); FileInputStream in = null; FileChannel inChannel =
+	 * null;
+	 * 
+	 * FileOutputStream out = new FileOutputStream(t, true); FileChannel
+	 * outChannel = out.getChannel();
+	 * 
+	 * File f = new File(from); // 获取目录下的每一个文件名，再将每个文件一次写入目标文件 if
+	 * (f.isDirectory()) { File[] files = f.listFiles(); // 记录新文件最后一个数据的位置 long
+	 * start = 0; for (File file : files) {
+	 * 
+	 * in = new FileInputStream(file); inChannel = in.getChannel();
+	 * 
+	 * // 从inChannel中读取file.length()长度的数据，写入outChannel的start处
+	 * outChannel.transferFrom(inChannel, start, file.length()); start +=
+	 * file.length(); in.close(); inChannel.close(); } } out.close();
+	 * outChannel.close(); }
+	 */
+	//合并文件
 	public static void main(String[] args) {
 		try {
-			merge("D:\\breakpoint\\c61b970c-a924-4442-8837-601b00c1b2fd", "D:\\breakpoint\\sor.zip");
+			merge("D:\\breakpoint\\142b9df6-65a2-4565-ba69-66ab3bc3742f", "D:\\breakpoint\\sor.zip");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
